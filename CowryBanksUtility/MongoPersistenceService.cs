@@ -6,6 +6,8 @@ namespace CowryBanksUtility
     {
         Task CreateOneAsync(Bank entity);
 
+        Task CreateOneAsync(SingleAssetData entity);
+
         string CollectionName { get; set; }
     }
 
@@ -27,6 +29,7 @@ namespace CowryBanksUtility
     public class MongodbPersistenceService : IMongodbService
     {
         private readonly IMongoCollection<Bank> _genericCollection;
+        private readonly IMongoCollection<SingleAssetData> _assetsCollection;
 
         public string CollectionName { get; set; }
         public MongodbPersistenceService(IMongoDatabaseSettings settings)
@@ -34,10 +37,16 @@ namespace CowryBanksUtility
             var client = new MongoClient(settings.ConnectionString);
             var db = client.GetDatabase(settings.DatabaseName);
             _genericCollection = db.GetCollection<Bank>("CowryBanks");
+            _assetsCollection = db.GetCollection<SingleAssetData>("CowryInvestmentAssets");
         }
         public async Task CreateOneAsync(Bank entity)
         {
             await _genericCollection.InsertOneAsync(entity).ConfigureAwait(false);
+        }
+
+        public async Task CreateOneAsync(SingleAssetData entity)
+        {
+            await _assetsCollection.InsertOneAsync(entity).ConfigureAwait(false);
         }
     }
 

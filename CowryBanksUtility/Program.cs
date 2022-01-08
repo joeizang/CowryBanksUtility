@@ -16,17 +16,25 @@ using IHost host = Host.CreateDefaultBuilder(args)
         .AddHttpClient<IAuthenticationService, AuthenticationService>()
     ).Build();
 
-List<Bank> banks = new();
-int totalPages = 1;
+//List<Bank> banks = new();
+List<SingleAssetData> assets = new();
+//int totalPages = 1;
+int assetsTotalPages = 1;
 
-while (totalPages <= 12)
+//while (totalPages <= 12)
+//{
+//    await DoItAsync(host.Services, banks, totalPages);
+//    totalPages++;
+//}
+while (assetsTotalPages <= 3)
 {
-    await DoItAsync(host.Services, banks, totalPages);
-    totalPages++;
+    await DoSaveAssetsAsync(host.Services, assets, 1);
+    assetsTotalPages++;
 }
 
 //save to db.
-SaveToDb(banks, host.Services.CreateScope().ServiceProvider.GetRequiredService<IMongodbService>());
+//SaveToDb(banks, host.Services.CreateScope().ServiceProvider.GetRequiredService<IMongodbService>());
+SaveAssetsToDb(assets, host.Services.CreateScope().ServiceProvider.GetRequiredService<IMongodbService>());
 
 await host.RunAsync();
 
@@ -52,6 +60,40 @@ static async Task<List<Bank>> DoItAsync(IServiceProvider services, List<Bank> ba
     request = null;
     client = null;
     return banks;
+}
+
+static async Task<List<SingleAssetData>> DoSaveAssetsAsync(IServiceProvider services, List<SingleAssetData> assets, int page = 1)
+{
+    using IServiceScope scope = services.CreateScope();
+    var provider = scope.ServiceProvider;
+    var auth = provider.GetRequiredService<IAuthenticationService>();
+    var httpClient = provider.GetRequiredService<IHttpClientFactory>();
+    var _service = provider.GetRequiredService<IHttpService>();
+
+    var inputModel = new GetPaginatedResponseInputModel();
+    inputModel.Page = page.ToString();
+
+    var request = new RestRequest("/api/v1/assets", Method.GET);
+    request.AddParameter("page", inputModel.Page, ParameterType.GetOrPost);
+    request.AddParameter("page_size", inputModel.PageSize, ParameterType.GetOrPost);
+    var client = await _service.InitializeClient();
+    var result = await client
+        .ExecuteAsync<AssetResponse>(request)
+        .ConfigureAwait(false);
+    assets.AddRange(result.Data.Assets);
+    request = null;
+    client = null;
+    return assets;
+}
+
+static void SaveAssetsToDb(List<SingleAssetData> assets, IMongodbService mongoService)
+{
+    if (assets == null || !assets.Any())
+        return;
+    assets.ForEach(async asset =>
+    {
+        await mongoService.CreateOneAsync(asset);
+    });
 }
 
 static void SaveToDb(List<Bank> banks, IMongodbService mongoService)
